@@ -18,6 +18,20 @@ const SIGMA: [[usize; 16]; 10] = [
     [10, 2, 8, 4, 7, 6, 1, 5, 15, 11, 9, 14, 3, 12, 13, 0],
 ];
 
+/// Blake2s parameter block
+pub fn parameter_block(key_size: u8, hash_size: u8) -> [u32; 8] {
+    let mut p = [0; 8];
+    p[0] = 0x0101_0000 ^ ((key_size as u32) << 8) ^ (hash_size as u32);
+    p
+}
+
+/// Blake2s initial state
+pub fn initial_state(key_size: u8, hash_size: u8) -> [u32; 8] {
+    let mut state = IV;
+    state[0] ^= parameter_block(key_size, hash_size)[0];
+    state
+}
+
 /// Blake2s compress function
 ///
 /// Compresses the message block `m` into the state vector `h`. The argument `t`
@@ -136,7 +150,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn compress_1() {
+    fn compress_case_1() {
         let h = [
             1795745351, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635,
             1541459225,
@@ -151,7 +165,7 @@ mod tests {
     }
 
     #[test]
-    fn compress_2() {
+    fn compress_case_2() {
         let h = [
             1795745351, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635,
             1541459225,
@@ -166,7 +180,7 @@ mod tests {
     }
 
     #[test]
-    fn compress_3() {
+    fn compress_case_3() {
         let h = [
             1795745351, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635,
             1541459225,
@@ -183,7 +197,7 @@ mod tests {
     }
 
     #[test]
-    fn compress_4() {
+    fn compress_case_4() {
         let h = [
             1795745351, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635,
             1541459225,
@@ -203,7 +217,7 @@ mod tests {
     }
 
     #[test]
-    fn compress_5() {
+    fn compress_case_5() {
         let h = [
             1795745351, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635,
             1541459225,
@@ -221,7 +235,7 @@ mod tests {
     }
 
     #[test]
-    fn compress_6() {
+    fn compress_case_6() {
         let h = [
             1795745351, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635,
             1541459225,
@@ -239,7 +253,7 @@ mod tests {
     }
 
     #[test]
-    fn compress_7() {
+    fn compress_case_7() {
         let h = [
             1795745351, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635,
             1541459225,
@@ -254,5 +268,19 @@ mod tests {
             3845288240,
         ];
         assert_eq!(new_h, expected_h)
+    }
+
+    #[test]
+    fn parameter_block_kk0_nn32() {
+        let p = parameter_block(0, 32);
+        assert_eq!(p[0], 0x01010020);
+        assert_eq!(&p[1..], &[0; 7])
+    }
+
+    #[test]
+    fn initial_state_kk0_nn32() {
+        let h = initial_state(0, 32);
+        assert_eq!(h[0], 0x6B08E647);
+        assert_eq!(&h[1..], &IV[1..]);
     }
 }
