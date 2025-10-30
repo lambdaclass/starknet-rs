@@ -24,14 +24,14 @@ const SIGMA: [[usize; 16]; 10] = [
 ];
 
 /// Blake2s parameter block
-pub fn parameter_block(key_size: u32, hash_size: u32) -> [u32; 8] {
+pub fn parameter_block(key_size: usize, hash_size: usize) -> [u32; 8] {
     let mut p = [0; 8];
-    p[0] = 0x0101_0000 ^ (key_size << 8) ^ hash_size;
+    p[0] = 0x0101_0000 ^ ((key_size as u32) << 8) ^ (hash_size as u32);
     p
 }
 
 /// Blake2s initial state
-pub fn initial_state(key_size: u32, hash_size: u32) -> [u32; 8] {
+pub fn initial_state(key_size: usize, hash_size: usize) -> [u32; 8] {
     let mut state = IV;
     state[0] ^= parameter_block(key_size, hash_size)[0];
     state
@@ -179,7 +179,7 @@ mod tests {
     }
 
     fn hash(buf: &[u8], key: &[u8], output_size: usize) -> Vec<u8> {
-        let mut state = initial_state(key.len() as u32, output_size as u32);
+        let mut state = initial_state(key.len(), output_size);
 
         let mut data = Vec::new();
         if !key.is_empty() {
