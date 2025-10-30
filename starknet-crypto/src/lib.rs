@@ -21,7 +21,7 @@
 #[cfg(all(not(feature = "std"), any(test, feature = "alloc")))]
 extern crate alloc;
 
-mod blake;
+mod blake2s;
 mod ecdsa;
 mod error;
 mod fe_utils;
@@ -34,7 +34,7 @@ mod test_utils;
 
 pub use starknet_types_core::felt::Felt;
 
-pub use blake::{blake2s_compress, blake2s_initial_state, blake2s_parameter_block, BLAKE2S_IV};
+pub use blake2s::{blake2s_compress, blake2s_initial_state, blake2s_parameter_block, BLAKE2S_IV};
 
 pub use pedersen_hash::{pedersen_hash, PedersenHasher};
 
