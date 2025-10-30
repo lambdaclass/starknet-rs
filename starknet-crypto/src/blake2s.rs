@@ -24,7 +24,7 @@ const SIGMA: [[usize; 16]; 10] = [
 ];
 
 /// Blake2s parameter block.
-pub fn blake2s_parameter_block(key_size: usize, hash_size: usize) -> [u32; 8] {
+pub const fn blake2s_parameter_block(key_size: usize, hash_size: usize) -> [u32; 8] {
     assert!(key_size <= 32);
     assert!(hash_size <= 32);
 
@@ -34,7 +34,7 @@ pub fn blake2s_parameter_block(key_size: usize, hash_size: usize) -> [u32; 8] {
 }
 
 /// Blake2s initial state.
-pub fn blake2s_initial_state(key_size: usize, hash_size: usize) -> [u32; 8] {
+pub const fn blake2s_initial_state(key_size: usize, hash_size: usize) -> [u32; 8] {
     let mut state = BLAKE2S_IV;
     state[0] ^= blake2s_parameter_block(key_size, hash_size)[0];
     state
