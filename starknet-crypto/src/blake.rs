@@ -155,16 +155,30 @@ fn right_rot(value: u32, n: u32) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use core::mem::transmute;
-
     use super::*;
+
+    fn u32s_to_u8s(words: [u32; 8]) -> [u8; 32] {
+        let mut bytes = [0; 32];
+        for (i, n) in words.into_iter().enumerate() {
+            bytes[i * 4..(i + 1) * 4].copy_from_slice(&n.to_ne_bytes());
+        }
+        bytes
+    }
+
+    fn u8s_to_u32s(bytes: [u8; 64]) -> [u32; 16] {
+        let mut words = [0; 16];
+        for (word, word_bytes) in words.iter_mut().zip(bytes.chunks(4)) {
+            *word = u32::from_ne_bytes(word_bytes.try_into().unwrap())
+        }
+        words
+    }
 
     fn hash(data: &[u8]) -> [u8; 32] {
         let mut state = initial_state(0, 32);
 
         if data.is_empty() {
             state = compress(&state, &[0u32; 16], 0, true);
-            return unsafe { transmute::<[u32; 8], [u8; 32]>(state) };
+            return u32s_to_u8s(state);
         }
 
         let mut t = 0u64;
@@ -175,13 +189,13 @@ mod tests {
 
             let mut block = [0u8; 64];
             block[..block_slice.len()].copy_from_slice(block_slice);
-            let message: [u32; 16] = unsafe { transmute(block) };
+            let message = u8s_to_u32s(block);
 
             let is_last = chunks.peek().is_none();
             state = compress(&state, &message, t, is_last);
         }
 
-        unsafe { transmute(state) }
+        u32s_to_u8s(state)
     }
 
     #[test]
