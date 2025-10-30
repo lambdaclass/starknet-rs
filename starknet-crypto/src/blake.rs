@@ -1,3 +1,8 @@
+//! This module implements a low-level API of the Blake2s hash, defined in RFC7693.
+//!
+//! Unlike other popular Blake2s implementation, this one exposes the `compress`
+//! function, which is required for implementing Cairo language executors.
+
 use core::ops::Shl;
 
 /// Blake2s initialization vector
