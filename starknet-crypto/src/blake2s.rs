@@ -25,6 +25,9 @@ const SIGMA: [[usize; 16]; 10] = [
 
 /// Blake2s parameter block.
 pub fn blake2s_parameter_block(key_size: usize, hash_size: usize) -> [u32; 8] {
+    assert!(key_size <= 32);
+    assert!(hash_size <= 32);
+
     let mut p = [0; 8];
     p[0] = 0x0101_0000 ^ ((key_size as u32) << 8) ^ (hash_size as u32);
     p
