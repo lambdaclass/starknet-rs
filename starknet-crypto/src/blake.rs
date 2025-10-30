@@ -173,19 +173,16 @@ mod tests {
         words
     }
 
-    fn hash(data: &[u8], key: &[u8], output_size: usize) -> Vec<u8> {
+    fn hash(buf: &[u8], key: &[u8], output_size: usize) -> Vec<u8> {
         let mut state = initial_state(key.len() as u32, output_size as u32);
 
-        let mut padded_key_array = [0; 64];
-
-        let padded_key = if !key.is_empty() {
-            padded_key_array[..key.len()].copy_from_slice(key);
-            padded_key_array.as_slice()
-        } else {
-            &[]
-        };
-
-        let data = [padded_key, data].concat();
+        let mut data = Vec::new();
+        if !key.is_empty() {
+            let mut padded_key = [0; 64];
+            padded_key[..key.len()].copy_from_slice(key);
+            data.extend_from_slice(&padded_key);
+        }
+        data.extend_from_slice(buf);
 
         if data.is_empty() {
             state = compress(&state, &[0u32; 16], 0, true);
@@ -277,6 +274,17 @@ mod tests {
         assert_eq!(
             hex::encode(output),
             "4669dc25351381a2b2b430c483cd7ab64aa7b3277582de521a1884ee6d3538ff"
+        )
+    }
+
+    #[test]
+    fn hash_with_full_key() {
+        let key = b"Lorem ipsum dolor sit amet odio.";
+        let data = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris id sagittis turpis. Vestibulum tempus nibh non nunc commodo, non dapibus libero blandit. Duis ultricies vehicula massa id lacinia. Aenean sit amet quam eleifend mauris pellentesque interdum. Cras sit amet libero ac ex feugiat bibendum in vitae metus. Mauris a nisl laoreet, mattis sapien sed, ullamcorper mi. Integer suscipit imperdiet magna ultrices accumsan. Donec et purus vel neque ultrices iaculis ac nec ipsum. Vivamus semper nunc ut consequat fermentum. Duis id aliquet orci. Fusce id condimentum ligula, nec aliquet elit. Fusce vitae tincidunt metus. Nullam luctus erat turpis, ac feugiat dolor nunc.";
+        let output = hash(data, key, 32);
+        assert_eq!(
+            hex::encode(output),
+            "09c5bdd9d1e0cddd2fbb5f8ae3a2b52680c1409d8a614bfb22b1e56b1e838852"
         )
     }
 
