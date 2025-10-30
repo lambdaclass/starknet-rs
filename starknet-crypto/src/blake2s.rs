@@ -385,6 +385,16 @@ mod tests {
     }
 
     #[test]
+    fn hash_with_full_key_and_smaller_output_size() {
+        let key = HALF_MESSAGE;
+        let data = HALF_MESSAGE.repeat(11);
+        let mut hasher = Blake2sHasher::<16>::new_with_key(key);
+        hasher.update(&data);
+        let output = hasher.finalize();
+        assert_eq!(hex::encode(output), "0625ee15b016cada70d7a696c4a42dcb")
+    }
+
+    #[test]
     fn compress_case_1() {
         let state = [
             1795745351, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635,
