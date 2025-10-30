@@ -209,6 +209,9 @@ mod tests {
         output
     }
 
+    /// A 32 byte string which can fit in half blake2s message.
+    const HALF_MESSAGE: &[u8] = b"Lorem ipsum dolor sit amet duis.";
+
     #[test]
     fn hash_empty_block() {
         let data = b"";
@@ -221,70 +224,70 @@ mod tests {
 
     #[test]
     fn hash_partial_block() {
-        let data = b"Hello, World!";
+        let data = HALF_MESSAGE;
         let output = hash(data, &[], 32);
         assert_eq!(
             hex::encode(output),
-            "ec9db904d636ef61f1421b2ba47112a4fa6b8964fd4a0a514834455c21df7812"
+            "cf4e2ef5d65843da6e8d501e1b293dec5ca0cee12697245fd926d43118076d0a"
         )
     }
 
     #[test]
     fn hash_full_block() {
-        let data = b"Cras venenatis sem quis mattis efficitur. Pellentesque placerat.";
-        let output = hash(data, &[], 32);
+        let data = HALF_MESSAGE.repeat(2);
+        let output = hash(&data, &[], 32);
         assert_eq!(
             hex::encode(output),
-            "9545f23f4d3377077ed014a2fe2cb75d266b5f6b180cf91cdc2fb77a3f557397"
+            "95a466cd8ea68cec3c0b3bee3889dab5e340f93588fe8d48912b89138ae4aa6e"
         )
     }
 
     #[test]
     fn hash_multiple_full_blocks() {
-        let data = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec risus lorem, eleifend non justo vel, porta maximus mauris. Vivamus at sollicitudin ante. Mauris maximus lectus nec urna pretium, at consequat nisi commodo. Curabitur elit eros, imperdiet in volutpat sit amet, consectetur vitae libero. Aliquam orci erat, facilisis id nisl tempor, commodo fermentum leo. Morbi a vestibulum ligula. Curabitur lobortis ex nec orci convallis, vitae cursus justo laoreet. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Aenean hendrerit nisi at elit fringilla tincidunt. Ut posuere est vitae sapien sit.";
-        let output = hash(data, &[], 32);
+        let data = HALF_MESSAGE.repeat(10);
+        let output = hash(&data, &[], 32);
         assert_eq!(
             hex::encode(output),
-            "e16989778a15616122cdfea41c77d61445877cd7a46af639a43b4652614a5216"
+            "3d7a25e8ca9b1d3ca667de6751a5df4dc88cc4f81b1148bfd2391d0d4aa4fbab"
         )
     }
 
     #[test]
     fn hash_multiple_full_blocks_with_partial_last_block() {
-        let data = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris id sagittis turpis. Vestibulum tempus nibh non nunc commodo, non dapibus libero blandit. Duis ultricies vehicula massa id lacinia. Aenean sit amet quam eleifend mauris pellentesque interdum. Cras sit amet libero ac ex feugiat bibendum in vitae metus. Mauris a nisl laoreet, mattis sapien sed, ullamcorper mi. Integer suscipit imperdiet magna ultrices accumsan. Donec et purus vel neque ultrices iaculis ac nec ipsum. Vivamus semper nunc ut consequat fermentum. Duis id aliquet orci. Fusce id condimentum ligula, nec aliquet elit. Fusce vitae tincidunt metus. Nullam luctus erat turpis, ac feugiat dolor nunc.";
-        let output = hash(data, &[], 32);
+        let data = HALF_MESSAGE.repeat(11);
+        let output = hash(&data, &[], 32);
         assert_eq!(
             hex::encode(output),
-            "0f610082f3b8e3d4b3c0e02326b3b2620b664f76e156d79fbb39f54c5e6c2a54"
+            "2897e0a3eb8ad8b263f816b5268472b5056fae2785227dc55a6d72a7ef68ab27"
         )
     }
 
     #[test]
     fn hash_with_smaller_output_size() {
-        let data = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris id sagittis turpis. Vestibulum tempus nibh non nunc commodo, non dapibus libero blandit. Duis ultricies vehicula massa id lacinia. Aenean sit amet quam eleifend mauris pellentesque interdum. Cras sit amet libero ac ex feugiat bibendum in vitae metus. Mauris a nisl laoreet, mattis sapien sed, ullamcorper mi. Integer suscipit imperdiet magna ultrices accumsan. Donec et purus vel neque ultrices iaculis ac nec ipsum. Vivamus semper nunc ut consequat fermentum. Duis id aliquet orci. Fusce id condimentum ligula, nec aliquet elit. Fusce vitae tincidunt metus. Nullam luctus erat turpis, ac feugiat dolor nunc.";
-        let output = hash(data, &[], 16);
-        assert_eq!(hex::encode(output), "4d42df29b369a1c13b49d21651373c3d")
+        let data = HALF_MESSAGE.repeat(11);
+        let output = hash(&data, &[], 16);
+        assert_eq!(hex::encode(output), "d4a570aa136f46c0db3549c1971f7290")
     }
 
     #[test]
     fn hash_with_partial_key() {
         let key = b"starknet";
-        let data = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris id sagittis turpis. Vestibulum tempus nibh non nunc commodo, non dapibus libero blandit. Duis ultricies vehicula massa id lacinia. Aenean sit amet quam eleifend mauris pellentesque interdum. Cras sit amet libero ac ex feugiat bibendum in vitae metus. Mauris a nisl laoreet, mattis sapien sed, ullamcorper mi. Integer suscipit imperdiet magna ultrices accumsan. Donec et purus vel neque ultrices iaculis ac nec ipsum. Vivamus semper nunc ut consequat fermentum. Duis id aliquet orci. Fusce id condimentum ligula, nec aliquet elit. Fusce vitae tincidunt metus. Nullam luctus erat turpis, ac feugiat dolor nunc.";
-        let output = hash(data, key, 32);
+        let data = HALF_MESSAGE.repeat(11);
+        let output = hash(&data, key, 32);
         assert_eq!(
             hex::encode(output),
-            "4669dc25351381a2b2b430c483cd7ab64aa7b3277582de521a1884ee6d3538ff"
+            "1c5d35bb2566afdf6a0696140513522badf8276c3e99ee9c0dc6c26d22a8a6f3"
         )
     }
 
     #[test]
     fn hash_with_full_key() {
-        let key = b"Lorem ipsum dolor sit amet odio.";
-        let data = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris id sagittis turpis. Vestibulum tempus nibh non nunc commodo, non dapibus libero blandit. Duis ultricies vehicula massa id lacinia. Aenean sit amet quam eleifend mauris pellentesque interdum. Cras sit amet libero ac ex feugiat bibendum in vitae metus. Mauris a nisl laoreet, mattis sapien sed, ullamcorper mi. Integer suscipit imperdiet magna ultrices accumsan. Donec et purus vel neque ultrices iaculis ac nec ipsum. Vivamus semper nunc ut consequat fermentum. Duis id aliquet orci. Fusce id condimentum ligula, nec aliquet elit. Fusce vitae tincidunt metus. Nullam luctus erat turpis, ac feugiat dolor nunc.";
-        let output = hash(data, key, 32);
+        let key = HALF_MESSAGE;
+        let data = HALF_MESSAGE.repeat(11);
+        let output = hash(&data, key, 32);
         assert_eq!(
             hex::encode(output),
-            "09c5bdd9d1e0cddd2fbb5f8ae3a2b52680c1409d8a614bfb22b1e56b1e838852"
+            "ee5f40c89c992250163ba5a5988f5546f7f2304a01178d81803124d8f7310834"
         )
     }
 
