@@ -6,7 +6,7 @@
 use core::ops::Shl;
 
 /// Blake2s initialization vector
-pub const IV: [u32; 8] = [
+pub const BLAKE2S_IV: [u32; 8] = [
     0x6A09E667, 0xBB67AE85, 0x3C6EF372, 0xA54FF53A, 0x510E527F, 0x9B05688C, 0x1F83D9AB, 0x5BE0CD19,
 ];
 
@@ -24,16 +24,16 @@ const SIGMA: [[usize; 16]; 10] = [
 ];
 
 /// Blake2s parameter block.
-pub fn parameter_block(key_size: usize, hash_size: usize) -> [u32; 8] {
+pub fn blake2s_parameter_block(key_size: usize, hash_size: usize) -> [u32; 8] {
     let mut p = [0; 8];
     p[0] = 0x0101_0000 ^ ((key_size as u32) << 8) ^ (hash_size as u32);
     p
 }
 
 /// Blake2s initial state.
-pub fn initial_state(key_size: usize, hash_size: usize) -> [u32; 8] {
-    let mut state = IV;
-    state[0] ^= parameter_block(key_size, hash_size)[0];
+pub fn blake2s_initial_state(key_size: usize, hash_size: usize) -> [u32; 8] {
+    let mut state = BLAKE2S_IV;
+    state[0] ^= blake2s_parameter_block(key_size, hash_size)[0];
     state
 }
 
@@ -45,7 +45,7 @@ pub fn initial_state(key_size: usize, hash_size: usize) -> [u32; 8] {
 /// block.
 ///
 /// TODO: Document expected usage.
-pub fn compress(
+pub fn blake2s_compress(
     state: &[u32; 8],
     message: &[u32; 16],
     byte_offset: u64,
@@ -53,15 +53,15 @@ pub fn compress(
 ) -> [u32; 8] {
     let mut work = [0u32; 16];
     work[0..8].copy_from_slice(state);
-    work[8..12].copy_from_slice(&IV[0..4]);
+    work[8..12].copy_from_slice(&BLAKE2S_IV[0..4]);
 
     let t0 = byte_offset as u32;
     let t1 = (byte_offset >> 32) as u32;
-    work[12..14].copy_from_slice(&[(IV[4] ^ t0), (IV[5] ^ t1)]);
+    work[12..14].copy_from_slice(&[(BLAKE2S_IV[4] ^ t0), (BLAKE2S_IV[5] ^ t1)]);
 
     let f0 = if finalize { !0 } else { 0 };
     let f1 = 0;
-    work[14..16].copy_from_slice(&[(IV[6] ^ f0), (IV[7] ^ f1)]);
+    work[14..16].copy_from_slice(&[(BLAKE2S_IV[6] ^ f0), (BLAKE2S_IV[7] ^ f1)]);
 
     for sigma_list in SIGMA {
         work = round(work, message, sigma_list);
@@ -179,7 +179,7 @@ mod tests {
     }
 
     fn hash(buf: &[u8], key: &[u8], output_size: usize) -> Vec<u8> {
-        let mut state = initial_state(key.len(), output_size);
+        let mut state = blake2s_initial_state(key.len(), output_size);
 
         let mut data = Vec::new();
         if !key.is_empty() {
@@ -190,7 +190,7 @@ mod tests {
         data.extend_from_slice(buf);
 
         if data.is_empty() {
-            state = compress(&state, &[0u32; 16], 0, true);
+            state = blake2s_compress(&state, &[0u32; 16], 0, true);
         } else {
             let mut chunks = data.chunks(64).peekable();
 
@@ -203,7 +203,7 @@ mod tests {
                 let message = u8s_to_u32s(block);
 
                 let is_last = chunks.peek().is_none();
-                state = compress(&state, &message, byte_offset, is_last);
+                state = blake2s_compress(&state, &message, byte_offset, is_last);
             }
         }
 
@@ -305,7 +305,7 @@ mod tests {
             1541459225,
         ];
         let message = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        let new_state = compress(&state, &message, 2, true);
+        let new_state = blake2s_compress(&state, &message, 2, true);
         let expected_state = [
             412110711, 3234706100, 3894970767, 982912411, 937789635, 742982576, 3942558313,
             1407547065,
@@ -320,7 +320,7 @@ mod tests {
             1541459225,
         ];
         let message = [456710651, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        let new_state = compress(&state, &message, 2, true);
+        let new_state = blake2s_compress(&state, &message, 2, true);
         let expected_state = [
             1061041453, 3663967611, 2158760218, 836165556, 3696892209, 3887053585, 2675134684,
             2201582556,
@@ -337,7 +337,7 @@ mod tests {
         let message = [
             1819043144, 1870078063, 6581362, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ];
-        let new_state = compress(&state, &message, 9, true);
+        let new_state = blake2s_compress(&state, &message, 9, true);
         let expected_state = [
             939893662, 3935214984, 1704819782, 3912812968, 4211807320, 3760278243, 674188535,
             2642110762,
@@ -355,7 +355,7 @@ mod tests {
             1819043144, 1870078063, 6581362, 274628678, 715791845, 175498643, 871587583, 0, 0, 0,
             0, 0, 0, 0, 0, 0,
         ];
-        let new_state = compress(&state, &message, 28, true);
+        let new_state = blake2s_compress(&state, &message, 28, true);
         let expected_state = [
             3980510537, 3982966407, 1593299263, 2666882356, 3288094120, 2682988286, 1666615862,
             378086837,
@@ -373,7 +373,7 @@ mod tests {
             1819043144, 1870078063, 6581362, 274628678, 715791845, 175498643, 871587583, 635963558,
             557369694, 1576875962, 215769785, 0, 0, 0, 0, 0,
         ];
-        let new_state = compress(&state, &message, 44, true);
+        let new_state = blake2s_compress(&state, &message, 44, true);
         let expected_state = [
             3251785223, 1946079609, 2665255093, 3508191500, 3630835628, 3067307230, 3623370123,
             656151356,
@@ -391,7 +391,7 @@ mod tests {
             1819043144, 1870078063, 6581362, 274628678, 715791845, 175498643, 871587583, 635963558,
             557369694, 1576875962, 215769785, 152379578, 585849303, 764739320, 437383930, 74833930,
         ];
-        let new_state = compress(&state, &message, 64, true);
+        let new_state = blake2s_compress(&state, &message, 64, true);
         let expected_state = [
             2593218707, 3238077801, 914875393, 3462286058, 4028447058, 3174734057, 2001070146,
             3741410512,
@@ -409,7 +409,7 @@ mod tests {
             11563522, 43535528, 653255322, 274628678, 73471943, 17549868, 87158958, 635963558,
             343656565, 1576875962, 215769785, 152379578, 585849303, 76473202, 437253230, 74833930,
         ];
-        let new_state = compress(&state, &message, 64, true);
+        let new_state = blake2s_compress(&state, &message, 64, true);
         let expected_state = [
             3496615692, 3252241979, 3771521549, 2125493093, 3240605752, 2885407061, 3962009872,
             3845288240,
@@ -419,15 +419,15 @@ mod tests {
 
     #[test]
     fn parameter_block_kk0_nn32() {
-        let parameter_block = parameter_block(0, 32);
+        let parameter_block = blake2s_parameter_block(0, 32);
         assert_eq!(parameter_block[0], 0x01010020);
         assert_eq!(&parameter_block[1..], &[0; 7])
     }
 
     #[test]
     fn initial_state_kk0_nn32() {
-        let state = initial_state(0, 32);
+        let state = blake2s_initial_state(0, 32);
         assert_eq!(state[0], 0x6B08E647);
-        assert_eq!(&state[1..], &IV[1..]);
+        assert_eq!(&state[1..], &BLAKE2S_IV[1..]);
     }
 }
