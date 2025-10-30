@@ -19,14 +19,14 @@ const SIGMA: [[usize; 16]; 10] = [
 ];
 
 /// Blake2s parameter block
-pub fn parameter_block(key_size: u8, hash_size: u8) -> [u32; 8] {
+pub fn parameter_block(key_size: u32, hash_size: u32) -> [u32; 8] {
     let mut p = [0; 8];
-    p[0] = 0x0101_0000 ^ ((key_size as u32) << 8) ^ (hash_size as u32);
+    p[0] = 0x0101_0000 ^ (key_size << 8) ^ hash_size;
     p
 }
 
 /// Blake2s initial state
-pub fn initial_state(key_size: u8, hash_size: u8) -> [u32; 8] {
+pub fn initial_state(key_size: u32, hash_size: u32) -> [u32; 8] {
     let mut state = IV;
     state[0] ^= parameter_block(key_size, hash_size)[0];
     state
@@ -154,7 +154,91 @@ fn right_rot(value: u32, n: u32) -> u32 {
 
 #[cfg(test)]
 mod tests {
+    use core::mem::transmute;
+
     use super::*;
+
+    fn hash(data: &[u8]) -> [u8; 32] {
+        let mut state = initial_state(0, 32);
+
+        if data.is_empty() {
+            state = compress(&state, &[0u32; 16], 0, 0, 0xFFFFFFFF, 0);
+            return unsafe { transmute::<[u32; 8], [u8; 32]>(state) };
+        }
+
+        let mut t = 0usize;
+        let mut chunks = data.chunks(64).peekable();
+
+        while let Some(block_slice) = chunks.next() {
+            let is_last = chunks.peek().is_none();
+
+            t += block_slice.len();
+
+            let mut block = [0u8; 64];
+            block[..block_slice.len()].copy_from_slice(block_slice);
+
+            let message: [u32; 16] = unsafe { transmute(block) };
+
+            let t0 = (t & 0xFFFFFFFF) as u32;
+            let t1 = (t >> 32) as u32;
+            let f0 = if is_last { 0xFFFFFFFF } else { 0 };
+            let f1 = 0;
+
+            state = compress(&state, &message, t0, t1, f0, f1);
+        }
+
+        unsafe { transmute(state) }
+    }
+
+    #[test]
+    fn hash_empty_block() {
+        let data = b"";
+        let output = hash(data);
+        assert_eq!(
+            hex::encode(output),
+            "69217a3079908094e11121d042354a7c1f55b6482ca1a51e1b250dfd1ed0eef9"
+        )
+    }
+
+    #[test]
+    fn hash_partial_block() {
+        let data = b"Hello, World!";
+        let output = hash(data);
+        assert_eq!(
+            hex::encode(output),
+            "ec9db904d636ef61f1421b2ba47112a4fa6b8964fd4a0a514834455c21df7812"
+        )
+    }
+
+    #[test]
+    fn hash_full_block() {
+        let data = b"Cras venenatis sem quis mattis efficitur. Pellentesque placerat.";
+        let output = hash(data);
+        assert_eq!(
+            hex::encode(output),
+            "9545f23f4d3377077ed014a2fe2cb75d266b5f6b180cf91cdc2fb77a3f557397"
+        )
+    }
+
+    #[test]
+    fn hash_multiple_full_blocks() {
+        let data = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec risus lorem, eleifend non justo vel, porta maximus mauris. Vivamus at sollicitudin ante. Mauris maximus lectus nec urna pretium, at consequat nisi commodo. Curabitur elit eros, imperdiet in volutpat sit amet, consectetur vitae libero. Aliquam orci erat, facilisis id nisl tempor, commodo fermentum leo. Morbi a vestibulum ligula. Curabitur lobortis ex nec orci convallis, vitae cursus justo laoreet. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Aenean hendrerit nisi at elit fringilla tincidunt. Ut posuere est vitae sapien sit.";
+        let output = hash(data);
+        assert_eq!(
+            hex::encode(output),
+            "e16989778a15616122cdfea41c77d61445877cd7a46af639a43b4652614a5216"
+        )
+    }
+
+    #[test]
+    fn hash_multiple_full_blocks_with_partial_last_block() {
+        let data = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris id sagittis turpis. Vestibulum tempus nibh non nunc commodo, non dapibus libero blandit. Duis ultricies vehicula massa id lacinia. Aenean sit amet quam eleifend mauris pellentesque interdum. Cras sit amet libero ac ex feugiat bibendum in vitae metus. Mauris a nisl laoreet, mattis sapien sed, ullamcorper mi. Integer suscipit imperdiet magna ultrices accumsan. Donec et purus vel neque ultrices iaculis ac nec ipsum. Vivamus semper nunc ut consequat fermentum. Duis id aliquet orci. Fusce id condimentum ligula, nec aliquet elit. Fusce vitae tincidunt metus. Nullam luctus erat turpis, ac feugiat dolor nunc.";
+        let output = hash(data);
+        assert_eq!(
+            hex::encode(output),
+            "0f610082f3b8e3d4b3c0e02326b3b2620b664f76e156d79fbb39f54c5e6c2a54"
+        )
+    }
 
     #[test]
     fn compress_case_1() {
