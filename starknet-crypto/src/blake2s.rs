@@ -44,7 +44,10 @@ pub fn blake2s_initial_state(key_size: usize, hash_size: usize) -> [u32; 8] {
 /// current message. The `finalize` flag must be set when compressing the last
 /// block.
 ///
-/// TODO: Document expected usage.
+/// # Safety
+///
+/// This function is a low-level blake2s primitive, and should be used with
+/// care. Checkout `Blake2sHasher` for an example on how this should be used.
 pub fn blake2s_compress(
     state: &[u32; 8],
     message: &[u32; 16],
@@ -72,6 +75,125 @@ pub fn blake2s_compress(
         new_state[i] = state[i] ^ work[i] ^ work[8 + i];
     }
     new_state
+}
+
+/// Blake2s hasher state, generic over output size.
+#[derive(Debug)]
+pub struct Blake2sHasher<const OUT: usize> {
+    state: [u32; 8],
+    byte_offset: u64,
+    buffer: [u8; 64],
+    buffer_length: usize,
+}
+
+impl<const OUT: usize> Blake2sHasher<OUT> {
+    /// Creates a new hasher instance.
+    pub fn new() -> Self {
+        let initial_state = blake2s_initial_state(0, OUT);
+
+        Self {
+            state: initial_state,
+            byte_offset: 0,
+            buffer: [0; 64],
+            buffer_length: 0,
+        }
+    }
+
+    /// Creates a new hasher instance with the given key.
+    pub fn new_with_key(key: &[u8]) -> Self {
+        let initial_state = blake2s_initial_state(key.len(), OUT);
+
+        // The key goes in the first block.
+        let buffer_length = 64;
+        let mut buffer = [0; 64];
+        buffer[..key.len()].copy_from_slice(key);
+
+        Self {
+            state: initial_state,
+            byte_offset: 0,
+            buffer,
+            buffer_length,
+        }
+    }
+
+    /// Feeds the given data into the hasher, updating its internal state.
+    pub fn update(&mut self, mut data: &[u8]) {
+        // While there is enough data to overflow the buffer, compress the
+        // buffer into the internal state.
+        while data.len() > self.remaining() {
+            let remaining = self.remaining();
+            let (left, right) = data.split_at(remaining);
+            data = right;
+
+            self.buffer[self.buffer_length..][..remaining].copy_from_slice(left);
+            self.buffer_length += remaining;
+            self.compress(false);
+        }
+
+        // Copy leftover data to buffer.
+        self.buffer[self.buffer_length..][..data.len()].copy_from_slice(data);
+        self.buffer_length += data.len();
+    }
+
+    /// Returns remaining bytes in the data buffer.
+    fn remaining(&self) -> usize {
+        64 - self.buffer_length
+    }
+
+    /// Compute the final hash digest.
+    pub fn finalize(mut self) -> [u8; OUT] {
+        // Compress what's left in the buffer.
+        self.compress(true);
+
+        // Return OUT bytes from internal state.
+        let mut output = [0; OUT];
+        output.copy_from_slice(&Self::u32s_to_u8s(&self.state)[..OUT]);
+        output
+    }
+
+    /// Compresses the data buffer into the internal state.
+    fn compress(&mut self, finalize: bool) {
+        // Increase byte offset by size of current message.
+        self.byte_offset += self.buffer_length as u64;
+
+        // Compress the buffer into the internal state.
+        self.state = blake2s_compress(
+            &self.state,
+            &Self::u8s_to_u32s(&self.buffer),
+            self.byte_offset,
+            finalize,
+        );
+
+        // Reset buffer.
+        self.buffer_length = 0;
+        self.buffer = [0; 64];
+    }
+
+    /// Utility function to convert an u32 array into an u8 array. This could be
+    /// implemented with the `transmute` function, but requires unsafe code.
+    fn u32s_to_u8s(words: &[u32; 8]) -> [u8; 32] {
+        let mut bytes = [0; 32];
+        for (i, n) in words.iter().enumerate() {
+            bytes[i * 4..(i + 1) * 4].copy_from_slice(&n.to_ne_bytes());
+        }
+        bytes
+    }
+
+    /// Utility function to convert an u8 array into an u32 array. This could be
+    /// implemented with the `transmute` function, but requires unsafe code.
+    fn u8s_to_u32s(bytes: &[u8; 64]) -> [u32; 16] {
+        let mut words = [0; 16];
+        for (word, word_bytes) in words.iter_mut().zip(bytes.chunks(4)) {
+            *word = u32::from_ne_bytes(word_bytes.try_into().unwrap())
+        }
+        words
+    }
+}
+
+impl<const OUT: usize> Default for Blake2sHasher<OUT> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 fn round(mut work: [u32; 16], message: &[u32; 16], sigma: [usize; 16]) -> [u32; 16] {
@@ -162,67 +284,17 @@ fn right_rot(value: u32, n: u32) -> u32 {
 mod tests {
     use super::*;
 
-    fn u32s_to_u8s(words: [u32; 8]) -> [u8; 32] {
-        let mut bytes = [0; 32];
-        for (i, n) in words.into_iter().enumerate() {
-            bytes[i * 4..(i + 1) * 4].copy_from_slice(&n.to_ne_bytes());
-        }
-        bytes
-    }
-
-    fn u8s_to_u32s(bytes: [u8; 64]) -> [u32; 16] {
-        let mut words = [0; 16];
-        for (word, word_bytes) in words.iter_mut().zip(bytes.chunks(4)) {
-            *word = u32::from_ne_bytes(word_bytes.try_into().unwrap())
-        }
-        words
-    }
-
-    fn hash(buf: &[u8], key: &[u8], output_size: usize) -> Vec<u8> {
-        let mut state = blake2s_initial_state(key.len(), output_size);
-
-        let mut data = Vec::new();
-        if !key.is_empty() {
-            let mut padded_key = [0; 64];
-            padded_key[..key.len()].copy_from_slice(key);
-            data.extend_from_slice(&padded_key);
-        }
-        data.extend_from_slice(buf);
-
-        if data.is_empty() {
-            state = blake2s_compress(&state, &[0u32; 16], 0, true);
-        } else {
-            let mut chunks = data.chunks(64).peekable();
-
-            let mut byte_offset = 0u64;
-            while let Some(block_slice) = chunks.next() {
-                byte_offset += block_slice.len() as u64;
-
-                let mut block = [0u8; 64];
-                block[..block_slice.len()].copy_from_slice(block_slice);
-                let message = u8s_to_u32s(block);
-
-                let is_last = chunks.peek().is_none();
-                state = blake2s_compress(&state, &message, byte_offset, is_last);
-            }
-        }
-
-        let full_output = u32s_to_u8s(state);
-
-        let mut output = Vec::with_capacity(output_size);
-        output.extend_from_slice(&full_output[..output_size]);
-        output
-    }
-
     /// A 32 byte string which can fit in half blake2s message.
     const HALF_MESSAGE: &[u8] = b"Lorem ipsum dolor sit amet duis.";
 
-    // All hash results were compare with existing Blake2s implementations.
+    // All hash results were compared with existing Blake2s implementations.
 
     #[test]
     fn hash_empty_block() {
         let data = b"";
-        let output = hash(data, &[], 32);
+        let mut hasher = Blake2sHasher::<32>::default();
+        hasher.update(data);
+        let output = hasher.finalize();
         assert_eq!(
             hex::encode(output),
             "69217a3079908094e11121d042354a7c1f55b6482ca1a51e1b250dfd1ed0eef9"
@@ -232,7 +304,9 @@ mod tests {
     #[test]
     fn hash_partial_block() {
         let data = HALF_MESSAGE;
-        let output = hash(data, &[], 32);
+        let mut hasher = Blake2sHasher::<32>::default();
+        hasher.update(data);
+        let output = hasher.finalize();
         assert_eq!(
             hex::encode(output),
             "cf4e2ef5d65843da6e8d501e1b293dec5ca0cee12697245fd926d43118076d0a"
@@ -242,7 +316,9 @@ mod tests {
     #[test]
     fn hash_full_block() {
         let data = HALF_MESSAGE.repeat(2);
-        let output = hash(&data, &[], 32);
+        let mut hasher = Blake2sHasher::<32>::default();
+        hasher.update(&data);
+        let output = hasher.finalize();
         assert_eq!(
             hex::encode(output),
             "95a466cd8ea68cec3c0b3bee3889dab5e340f93588fe8d48912b89138ae4aa6e"
@@ -252,7 +328,9 @@ mod tests {
     #[test]
     fn hash_multiple_full_blocks() {
         let data = HALF_MESSAGE.repeat(10);
-        let output = hash(&data, &[], 32);
+        let mut hasher = Blake2sHasher::<32>::default();
+        hasher.update(&data);
+        let output = hasher.finalize();
         assert_eq!(
             hex::encode(output),
             "3d7a25e8ca9b1d3ca667de6751a5df4dc88cc4f81b1148bfd2391d0d4aa4fbab"
@@ -262,7 +340,9 @@ mod tests {
     #[test]
     fn hash_multiple_full_blocks_with_partial_last_block() {
         let data = HALF_MESSAGE.repeat(11);
-        let output = hash(&data, &[], 32);
+        let mut hasher = Blake2sHasher::<32>::default();
+        hasher.update(&data);
+        let output = hasher.finalize();
         assert_eq!(
             hex::encode(output),
             "2897e0a3eb8ad8b263f816b5268472b5056fae2785227dc55a6d72a7ef68ab27"
@@ -272,7 +352,9 @@ mod tests {
     #[test]
     fn hash_with_smaller_output_size() {
         let data = HALF_MESSAGE.repeat(11);
-        let output = hash(&data, &[], 16);
+        let mut hasher = Blake2sHasher::<16>::default();
+        hasher.update(&data);
+        let output = hasher.finalize();
         assert_eq!(hex::encode(output), "d4a570aa136f46c0db3549c1971f7290")
     }
 
@@ -280,7 +362,9 @@ mod tests {
     fn hash_with_partial_key() {
         let key = b"starknet";
         let data = HALF_MESSAGE.repeat(11);
-        let output = hash(&data, key, 32);
+        let mut hasher = Blake2sHasher::<32>::new_with_key(key);
+        hasher.update(&data);
+        let output = hasher.finalize();
         assert_eq!(
             hex::encode(output),
             "1c5d35bb2566afdf6a0696140513522badf8276c3e99ee9c0dc6c26d22a8a6f3"
@@ -291,7 +375,9 @@ mod tests {
     fn hash_with_full_key() {
         let key = HALF_MESSAGE;
         let data = HALF_MESSAGE.repeat(11);
-        let output = hash(&data, key, 32);
+        let mut hasher = Blake2sHasher::<32>::new_with_key(key);
+        hasher.update(&data);
+        let output = hasher.finalize();
         assert_eq!(
             hex::encode(output),
             "ee5f40c89c992250163ba5a5988f5546f7f2304a01178d81803124d8f7310834"

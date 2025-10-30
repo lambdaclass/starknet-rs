@@ -34,7 +34,9 @@ mod test_utils;
 
 pub use starknet_types_core::felt::Felt;
 
-pub use blake2s::{blake2s_compress, blake2s_initial_state, blake2s_parameter_block, BLAKE2S_IV};
+pub use blake2s::{
+    blake2s_compress, blake2s_initial_state, blake2s_parameter_block, Blake2sHasher, BLAKE2S_IV,
+};
 
 pub use pedersen_hash::{pedersen_hash, PedersenHasher};
 
