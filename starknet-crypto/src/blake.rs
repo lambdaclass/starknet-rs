@@ -34,7 +34,7 @@ pub fn initial_state(key_size: u8, hash_size: u8) -> [u32; 8] {
 
 /// Blake2s compress function
 ///
-/// Compresses the message block `m` into the state vector `h`. The argument `t`
+/// Compresses the message block into the state vector. The argument `t`
 /// must contain the number of bytes hashed so far including the current block,
 /// separated into low and high bits (`t0` and `t1` respectively).
 ///
@@ -44,89 +44,96 @@ pub fn initial_state(key_size: u8, hash_size: u8) -> [u32; 8] {
 ///
 /// TODO: Consider exposing a safer signature (no u32 flags).
 /// TODO: Document expected usage.
-pub fn compress(h: &[u32; 8], m: &[u32; 16], t0: u32, t1: u32, f0: u32, f1: u32) -> [u32; 8] {
+pub fn compress(
+    state: &[u32; 8],
+    message: &[u32; 16],
+    t0: u32,
+    t1: u32,
+    f0: u32,
+    f1: u32,
+) -> [u32; 8] {
     let mut work = [0u32; 16];
-    work[0..8].copy_from_slice(h);
+    work[0..8].copy_from_slice(state);
     work[8..12].copy_from_slice(&IV[0..4]);
     work[12..16].copy_from_slice(&[(IV[4] ^ t0), (IV[5] ^ t1), (IV[6] ^ f0), (IV[7] ^ f1)]);
 
     for sigma_list in SIGMA {
-        work = round(work, m, sigma_list);
+        work = round(work, message, sigma_list);
     }
 
-    let mut new_h = [0u32; 8];
+    let mut new_state = [0u32; 8];
     for i in 0..8 {
-        new_h[i] = h[i] ^ work[i] ^ work[8 + i];
+        new_state[i] = state[i] ^ work[i] ^ work[8 + i];
     }
-    new_h
+    new_state
 }
 
-fn round(mut state: [u32; 16], message: &[u32; 16], sigma: [usize; 16]) -> [u32; 16] {
-    (state[0], state[4], state[8], state[12]) = mix(
-        state[0],
-        state[4],
-        state[8],
-        state[12],
+fn round(mut work: [u32; 16], message: &[u32; 16], sigma: [usize; 16]) -> [u32; 16] {
+    (work[0], work[4], work[8], work[12]) = mix(
+        work[0],
+        work[4],
+        work[8],
+        work[12],
         message[sigma[0]],
         message[sigma[1]],
     );
-    (state[1], state[5], state[9], state[13]) = mix(
-        state[1],
-        state[5],
-        state[9],
-        state[13],
+    (work[1], work[5], work[9], work[13]) = mix(
+        work[1],
+        work[5],
+        work[9],
+        work[13],
         message[sigma[2]],
         message[sigma[3]],
     );
-    (state[2], state[6], state[10], state[14]) = mix(
-        state[2],
-        state[6],
-        state[10],
-        state[14],
+    (work[2], work[6], work[10], work[14]) = mix(
+        work[2],
+        work[6],
+        work[10],
+        work[14],
         message[sigma[4]],
         message[sigma[5]],
     );
-    (state[3], state[7], state[11], state[15]) = mix(
-        state[3],
-        state[7],
-        state[11],
-        state[15],
+    (work[3], work[7], work[11], work[15]) = mix(
+        work[3],
+        work[7],
+        work[11],
+        work[15],
         message[sigma[6]],
         message[sigma[7]],
     );
-    (state[0], state[5], state[10], state[15]) = mix(
-        state[0],
-        state[5],
-        state[10],
-        state[15],
+    (work[0], work[5], work[10], work[15]) = mix(
+        work[0],
+        work[5],
+        work[10],
+        work[15],
         message[sigma[8]],
         message[sigma[9]],
     );
-    (state[1], state[6], state[11], state[12]) = mix(
-        state[1],
-        state[6],
-        state[11],
-        state[12],
+    (work[1], work[6], work[11], work[12]) = mix(
+        work[1],
+        work[6],
+        work[11],
+        work[12],
         message[sigma[10]],
         message[sigma[11]],
     );
-    (state[2], state[7], state[8], state[13]) = mix(
-        state[2],
-        state[7],
-        state[8],
-        state[13],
+    (work[2], work[7], work[8], work[13]) = mix(
+        work[2],
+        work[7],
+        work[8],
+        work[13],
         message[sigma[12]],
         message[sigma[13]],
     );
-    (state[3], state[4], state[9], state[14]) = mix(
-        state[3],
-        state[4],
-        state[9],
-        state[14],
+    (work[3], work[4], work[9], work[14]) = mix(
+        work[3],
+        work[4],
+        work[9],
+        work[14],
         message[sigma[14]],
         message[sigma[15]],
     );
-    state
+    work
 }
 
 fn mix(a: u32, b: u32, c: u32, d: u32, m0: u32, m1: u32) -> (u32, u32, u32, u32) {
@@ -151,54 +158,54 @@ mod tests {
 
     #[test]
     fn compress_case_1() {
-        let h = [
+        let state = [
             1795745351, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635,
             1541459225,
         ];
-        let m = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        let new_h = compress(&h, &m, 2, 0, 0xFFFFFFFF, 0);
-        let expected_h = [
+        let message = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let new_state = compress(&state, &message, 2, 0, 0xFFFFFFFF, 0);
+        let expected_state = [
             412110711, 3234706100, 3894970767, 982912411, 937789635, 742982576, 3942558313,
             1407547065,
         ];
-        assert_eq!(new_h, expected_h)
+        assert_eq!(new_state, expected_state)
     }
 
     #[test]
     fn compress_case_2() {
-        let h = [
+        let state = [
             1795745351, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635,
             1541459225,
         ];
-        let m = [456710651, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        let new_h = compress(&h, &m, 2, 0, 0xFFFFFFFF, 0);
-        let expected_h = [
+        let message = [456710651, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let new_state = compress(&state, &message, 2, 0, 0xFFFFFFFF, 0);
+        let expected_state = [
             1061041453, 3663967611, 2158760218, 836165556, 3696892209, 3887053585, 2675134684,
             2201582556,
         ];
-        assert_eq!(new_h, expected_h,)
+        assert_eq!(new_state, expected_state,)
     }
 
     #[test]
     fn compress_case_3() {
-        let h = [
+        let state = [
             1795745351, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635,
             1541459225,
         ];
-        let m = [
+        let message = [
             1819043144, 1870078063, 6581362, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ];
-        let new_h = compress(&h, &m, 9, 0, 0xFFFFFFFF, 0);
-        let expected_h = [
+        let new_state = compress(&state, &message, 9, 0, 0xFFFFFFFF, 0);
+        let expected_state = [
             939893662, 3935214984, 1704819782, 3912812968, 4211807320, 3760278243, 674188535,
             2642110762,
         ];
-        assert_eq!(new_h, expected_h,)
+        assert_eq!(new_state, expected_state,)
     }
 
     #[test]
     fn compress_case_4() {
-        let h = [
+        let state = [
             1795745351, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635,
             1541459225,
         ];
@@ -206,81 +213,79 @@ mod tests {
             1819043144, 1870078063, 6581362, 274628678, 715791845, 175498643, 871587583, 0, 0, 0,
             0, 0, 0, 0, 0, 0,
         ];
-        let new_state = compress(&h, &message, 28, 0, 0xFFFFFFFF, 0);
-        assert_eq!(
-            new_state,
-            [
-                3980510537, 3982966407, 1593299263, 2666882356, 3288094120, 2682988286, 1666615862,
-                378086837
-            ]
-        )
+        let new_state = compress(&state, &message, 28, 0, 0xFFFFFFFF, 0);
+        let expected_state = [
+            3980510537, 3982966407, 1593299263, 2666882356, 3288094120, 2682988286, 1666615862,
+            378086837,
+        ];
+        assert_eq!(new_state, expected_state)
     }
 
     #[test]
     fn compress_case_5() {
-        let h = [
+        let state = [
             1795745351, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635,
             1541459225,
         ];
-        let m = [
+        let message = [
             1819043144, 1870078063, 6581362, 274628678, 715791845, 175498643, 871587583, 635963558,
             557369694, 1576875962, 215769785, 0, 0, 0, 0, 0,
         ];
-        let new_h = compress(&h, &m, 44, 0, 0xFFFFFFFF, 0);
-        let expected_h = [
+        let new_state = compress(&state, &message, 44, 0, 0xFFFFFFFF, 0);
+        let expected_state = [
             3251785223, 1946079609, 2665255093, 3508191500, 3630835628, 3067307230, 3623370123,
             656151356,
         ];
-        assert_eq!(new_h, expected_h)
+        assert_eq!(new_state, expected_state)
     }
 
     #[test]
     fn compress_case_6() {
-        let h = [
+        let state = [
             1795745351, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635,
             1541459225,
         ];
-        let m = [
+        let message = [
             1819043144, 1870078063, 6581362, 274628678, 715791845, 175498643, 871587583, 635963558,
             557369694, 1576875962, 215769785, 152379578, 585849303, 764739320, 437383930, 74833930,
         ];
-        let new_h = compress(&h, &m, 64, 0, 0xFFFFFFFF, 0);
-        let expected_h = [
+        let new_state = compress(&state, &message, 64, 0, 0xFFFFFFFF, 0);
+        let expected_state = [
             2593218707, 3238077801, 914875393, 3462286058, 4028447058, 3174734057, 2001070146,
             3741410512,
         ];
-        assert_eq!(new_h, expected_h)
+        assert_eq!(new_state, expected_state)
     }
 
     #[test]
     fn compress_case_7() {
-        let h = [
+        let state = [
             1795745351, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635,
             1541459225,
         ];
-        let m = [
+        let message = [
             11563522, 43535528, 653255322, 274628678, 73471943, 17549868, 87158958, 635963558,
             343656565, 1576875962, 215769785, 152379578, 585849303, 76473202, 437253230, 74833930,
         ];
-        let new_h = compress(&h, &m, 64, 0, 0xFFFFFFFF, 0);
-        let expected_h = [
+        let new_state = compress(&state, &message, 64, 0, 0xFFFFFFFF, 0);
+        let expected_state = [
             3496615692, 3252241979, 3771521549, 2125493093, 3240605752, 2885407061, 3962009872,
             3845288240,
         ];
-        assert_eq!(new_h, expected_h)
+        assert_eq!(new_state, expected_state)
     }
 
     #[test]
     fn parameter_block_kk0_nn32() {
-        let p = parameter_block(0, 32);
-        assert_eq!(p[0], 0x01010020);
-        assert_eq!(&p[1..], &[0; 7])
+        let parameter_block = parameter_block(0, 32);
+        assert_eq!(parameter_block[0], 0x01010020);
+        assert_eq!(&parameter_block[1..], &[0; 7])
     }
 
     #[test]
     fn initial_state_kk0_nn32() {
-        let h = initial_state(0, 32);
-        assert_eq!(h[0], 0x6B08E647);
-        assert_eq!(&h[1..], &IV[1..]);
+        let state = initial_state(0, 32);
+        assert_eq!(state[0], 0x6B08E647);
+        assert_eq!(&state[1..], &IV[1..]);
     }
 }
