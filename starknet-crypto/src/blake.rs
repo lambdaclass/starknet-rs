@@ -212,6 +212,8 @@ mod tests {
     /// A 32 byte string which can fit in half blake2s message.
     const HALF_MESSAGE: &[u8] = b"Lorem ipsum dolor sit amet duis.";
 
+    // All hash results were compare with existing Blake2s implementations.
+
     #[test]
     fn hash_empty_block() {
         let data = b"";
