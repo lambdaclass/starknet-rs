@@ -176,7 +176,16 @@ mod tests {
     fn hash(data: &[u8], key: &[u8], output_size: usize) -> Vec<u8> {
         let mut state = initial_state(key.len() as u32, output_size as u32);
 
-        // TODO: Use key
+        let mut padded_key_array = [0; 64];
+
+        let padded_key = if !key.is_empty() {
+            padded_key_array[..key.len()].copy_from_slice(key);
+            padded_key_array.as_slice()
+        } else {
+            &[]
+        };
+
+        let data = [padded_key, data].concat();
 
         if data.is_empty() {
             state = compress(&state, &[0u32; 16], 0, true);
@@ -258,6 +267,17 @@ mod tests {
         let data = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris id sagittis turpis. Vestibulum tempus nibh non nunc commodo, non dapibus libero blandit. Duis ultricies vehicula massa id lacinia. Aenean sit amet quam eleifend mauris pellentesque interdum. Cras sit amet libero ac ex feugiat bibendum in vitae metus. Mauris a nisl laoreet, mattis sapien sed, ullamcorper mi. Integer suscipit imperdiet magna ultrices accumsan. Donec et purus vel neque ultrices iaculis ac nec ipsum. Vivamus semper nunc ut consequat fermentum. Duis id aliquet orci. Fusce id condimentum ligula, nec aliquet elit. Fusce vitae tincidunt metus. Nullam luctus erat turpis, ac feugiat dolor nunc.";
         let output = hash(data, &[], 16);
         assert_eq!(hex::encode(output), "4d42df29b369a1c13b49d21651373c3d")
+    }
+
+    #[test]
+    fn hash_with_partial_key() {
+        let key = b"starknet";
+        let data = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris id sagittis turpis. Vestibulum tempus nibh non nunc commodo, non dapibus libero blandit. Duis ultricies vehicula massa id lacinia. Aenean sit amet quam eleifend mauris pellentesque interdum. Cras sit amet libero ac ex feugiat bibendum in vitae metus. Mauris a nisl laoreet, mattis sapien sed, ullamcorper mi. Integer suscipit imperdiet magna ultrices accumsan. Donec et purus vel neque ultrices iaculis ac nec ipsum. Vivamus semper nunc ut consequat fermentum. Duis id aliquet orci. Fusce id condimentum ligula, nec aliquet elit. Fusce vitae tincidunt metus. Nullam luctus erat turpis, ac feugiat dolor nunc.";
+        let output = hash(data, key, 32);
+        assert_eq!(
+            hex::encode(output),
+            "4669dc25351381a2b2b430c483cd7ab64aa7b3277582de521a1884ee6d3538ff"
+        )
     }
 
     #[test]
