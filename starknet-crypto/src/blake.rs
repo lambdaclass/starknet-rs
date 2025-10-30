@@ -23,21 +23,21 @@ const SIGMA: [[usize; 16]; 10] = [
     [10, 2, 8, 4, 7, 6, 1, 5, 15, 11, 9, 14, 3, 12, 13, 0],
 ];
 
-/// Blake2s parameter block
+/// Blake2s parameter block.
 pub fn parameter_block(key_size: usize, hash_size: usize) -> [u32; 8] {
     let mut p = [0; 8];
     p[0] = 0x0101_0000 ^ ((key_size as u32) << 8) ^ (hash_size as u32);
     p
 }
 
-/// Blake2s initial state
+/// Blake2s initial state.
 pub fn initial_state(key_size: usize, hash_size: usize) -> [u32; 8] {
     let mut state = IV;
     state[0] ^= parameter_block(key_size, hash_size)[0];
     state
 }
 
-/// Blake2s compress function
+/// Blake2s compress function.
 ///
 /// Compresses the `message` block into the `state` vector. The `byte_offset`
 /// argument must contain the number of bytes hashed so far including the
